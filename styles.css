@@ -3,3 +3,16 @@
 @media(max-width:1050px){.site-shell{padding:0 25px}.workspace{gap:14px}.hero{grid-template-columns:1fr}.hero-graphic{display:none}.panel-heading,.setting-block,.status-row,.progress-block,.activity-head{padding-left:22px;padding-right:22px}.setup-footer{padding-left:22px;padding-right:22px}.telemetry-cell{padding-left:22px}.active-password,.success-panel{margin-left:22px;margin-right:22px}.control-row{padding-left:22px;padding-right:22px}.terminal{margin-left:22px;margin-right:22px}.terminal-caption{margin-left:22px}}
 @media(max-width:760px){.site-shell{padding:0 17px}.topbar{height:73px}.brand{font-size:22px}.top-right{gap:10px}.version{display:none}.hero{padding:42px 0 36px}h1{font-size:clamp(39px,10vw,57px)}.hero-description{font-size:14px}.workspace{grid-template-columns:1fr}.how-it-works{grid-template-columns:1fr;gap:3px;margin-top:30px}.how-it-works>div{padding:13px 0}.site-footer{gap:10px;flex-wrap:wrap}.terminal{height:210px}}
 @media(max-width:390px){.two-inputs{gap:8px}.setting-block{padding-left:17px;padding-right:17px}.panel-heading{padding-left:17px;padding-right:17px}.mask-row{grid-template-columns:49px 1fr}.mask-count{grid-column:2;text-align:left}.setup-footer{flex-wrap:wrap}.button-primary{width:100%}.progress-numbers strong{font-size:28px}.telemetry-cell{padding:13px}.telemetry-cell+.telemetry-cell{padding-left:13px}.telemetry-cell strong{font-size:15px}}
+
+/* PatternLab v2 controls */
+.toggle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.toggle-option{display:flex;align-items:center;justify-content:center;gap:4px;flex-direction:column;min-height:79px;cursor:pointer;border:1px solid #3e4a46;background:var(--input);border-radius:7px;padding:10px 5px;position:relative;text-align:center}
+.toggle-option:has(input:checked){border-color:var(--green);background:#253627}
+.toggle-option:has(input:focus-visible){outline:2px solid var(--green);outline-offset:3px}
+.toggle-option input{accent-color:var(--green);width:17px;height:17px;margin:0}
+.toggle-option span{font:15px var(--mono);color:var(--text)}
+.toggle-option small{font:10px var(--sans);color:var(--muted)}
+.mode-select{width:100%;background:var(--input);border:1px solid #3e4a46;color:var(--text);height:47px;border-radius:6px;padding:0 11px;outline:none}
+.mode-select:focus{border-color:var(--green)}
+.performance-block{border-bottom:1px solid var(--border)}
+@media(max-width:400px){.toggle-grid{gap:7px}.toggle-option{min-height:73px}.toggle-option span{font-size:12px}.toggle-option small{font-size:9px}}

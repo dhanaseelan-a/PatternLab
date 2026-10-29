@@ -4,13 +4,15 @@
   "use strict";
   const PDF_JS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs";
   const PDF_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs";
-  const MAX_CANDIDATES = 5_000_000n;
-  const MAX_SAVED_LOGS = 250_000;
+  const MAX_CANDIDATES = 5_000_000;
+  const MAX_SAVED_LOGS = 100_000;
+  const FAST_SAMPLE_INTERVAL = 500;
   const MAX_VISIBLE_LOGS = 90;
   const $ = (id) => document.getElementById(id);
   const ui = Object.fromEntries([
     "file-input", "dropzone", "file-name", "file-meta", "min-length", "max-length",
-    "prefix", "suffix", "mask-list", "validation-message", "candidate-total",
+    "prefix", "suffix", "middle-value", "middle-position", "set-digits", "set-lower", "set-upper", "log-mode",
+    "mask-list", "validation-message", "candidate-total",
     "start-btn", "pause-btn", "resume-btn", "stop-btn", "state-pill", "state-label",
     "percent-label", "progress-fill", "checked-label", "total-label", "elapsed-label",
     "rate-label", "length-label", "current-password", "attempt-result", "active-hint",
@@ -19,13 +21,18 @@
 
   let selectedFile = null;
   let masks = new Map();
+  let maskErrors = new Map();
   let pdfjsLib = null;
   let currentRun = null;
   let sequenceNumber = 0;
   let toastTimer = null;
 
-  const fmt = (value) => BigInt(value).toLocaleString("en-US");
-  const cleanDigits = (value) => value.replace(/\D/g, "");
+  const fmt = (value) => Number(value).toLocaleString("en-US");
+  const cleanKnown = (value) => value.replace(/[^0-9a-zA-Z]/g, "");
+  const maskValid = (mask, length) => mask.length === length && /^[0-9a-zA-Z?]+$/.test(mask);
+  const alphabet = () => (ui.set_digits.checked ? "0123456789" : "") +
+    (ui.set_lower.checked ? "abcdefghijklmnopqrstuvwxyz" : "") +
+    (ui.set_upper.checked ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "");
   const now = () => performance.now();
   const mmss = (ms) => {
     const seconds = Math.floor(ms / 1000);
@@ -59,24 +66,43 @@
     const max = Number(ui.max_length.value);
     const prefix = ui.prefix.value;
     const suffix = ui.suffix.value;
+    const middle = ui.middle_value.value;
+    const middlePosition = Number(ui.middle_position.value);
     masks = new Map();
+    maskErrors = new Map();
     ui.mask_list.replaceChildren();
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 20 || min > max || max - min > 12) {
       return validate();
     }
     for (let length = min; length <= max; length++) {
-      let value = "";
-      if (prefix.length + suffix.length > length) {
-        value = prefix + suffix;
-      } else {
-        value = prefix + "?".repeat(length - prefix.length - suffix.length) + suffix;
+      const chars = Array(length).fill("?");
+      function place(value, start, label) {
+        if (!value) return;
+        if (!Number.isInteger(start) || start < 0 || start + value.length > length) {
+          throw new Error(`${length}-character pattern: ${label} cannot fit. Change the position or length range.`);
+        }
+        for (let i = 0; i < value.length; i++) {
+          const pos = start + i;
+          if (chars[pos] !== "?") {
+            throw new Error(`${length}-character pattern: ${label} conflicts at position ${pos + 1}.`);
+          }
+          chars[pos] = value[i];
+        }
       }
+      try {
+        place(prefix, 0, "Prefix");
+        place(suffix, length - suffix.length, "Suffix");
+        if (middle) place(middle, middlePosition - 1, "Middle sequence");
+      } catch (error) {
+        maskErrors.set(length, error.message);
+      }
+      const value = chars.join("");
       masks.set(length, value);
       const row = document.createElement("label");
       row.className = "mask-row";
       const lenText = document.createElement("span");
       lenText.className = "mask-len";
-      lenText.textContent = `${length} DIGITS`;
+      lenText.textContent = `${length} CHARS`;
       const input = document.createElement("input");
       input.className = "mask-input";
       input.type = "text";
@@ -84,9 +110,10 @@
       input.spellcheck = false;
       input.maxLength = 20;
       input.value = value;
-      input.setAttribute("aria-label", `${length}-digit password pattern`);
+      input.setAttribute("aria-label", `${length}-character password pattern`);
       input.addEventListener("input", () => {
         masks.set(length, input.value);
+        maskErrors.delete(length); // Manual edits can resolve automatic placement conflicts.
         validate();
       });
       const count = document.createElement("span");
@@ -103,63 +130,75 @@
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 20 || min > max || max - min > 12) {
       throw new Error("Choose a valid length range (1–20, up to 13 different lengths).");
     }
-    if (!/^\d*$/.test(ui.prefix.value) || !/^\d*$/.test(ui.suffix.value)) {
-      throw new Error("Known starting and ending characters must be digits only.");
+    for (const [length, message] of maskErrors) {
+      if (length >= min && length <= max) throw new Error(message);
     }
+    const chars = alphabet();
     const compiled = [];
-    let total = 0n;
+    let total = 0;
     for (let length = min; length <= max; length++) {
       const mask = masks.get(length) ?? "";
-      if (mask.length !== length || !/^[\d?]+$/.test(mask)) {
-        throw new Error(`${length}-digit pattern must have exactly ${length} characters (digits or ?).`);
+      if (!maskValid(mask, length)) {
+        throw new Error(`${length}-character pattern must have exactly ${length} letters, digits or ? characters.`);
       }
       const unknown = [...mask].filter((x) => x === "?").length;
-      const count = 10n ** BigInt(unknown);
-      compiled.push({length, mask, unknown, count, next: 0n});
+      if (unknown && !chars.length) throw new Error("Enable at least one character set for unknown (?) positions.");
+      const count = chars.length ** unknown;
+      if (count > MAX_CANDIDATES || total + count > MAX_CANDIDATES) {
+        throw new Error(`Search space exceeds ${fmt(MAX_CANDIDATES)} attempts. Fix more characters or narrow the length range / character sets.`);
+      }
+      compiled.push({length, mask, unknown, count, next: 0});
       total += count;
     }
-    if (total > MAX_CANDIDATES) throw new Error(`Search space too large: ${fmt(total)} candidates. Narrow the unknown digits to 5,000,000 or fewer.`);
-    return {compiled, total};
+    return {compiled, total, chars};
   }
   function validate() {
     let validationError = null;
     let config = null;
     try { config = compile(); } catch (error) { validationError = error.message; }
+    const chars = alphabet();
     const fields = [...ui.mask_list.querySelectorAll(".mask-input")];
     for (const field of fields) {
       const len = Number(field.parentElement.querySelector(".mask-count").dataset.length);
-      const valid = field.value.length === len && /^[\d?]+$/.test(field.value);
+      const unknown = (field.value.match(/\?/g) || []).length;
+      const count = chars.length ** unknown;
+      const valid = maskValid(field.value, len) && !maskErrors.has(len) && (unknown === 0 || chars.length > 0) && count <= MAX_CANDIDATES;
       field.classList.toggle("invalid", !valid);
-      field.parentElement.querySelector(".mask-count").textContent = valid ? fmt(10n ** BigInt((field.value.match(/\?/g) || []).length)) : "INVALID";
+      field.parentElement.querySelector(".mask-count").textContent = valid ? fmt(count) : "INVALID";
     }
     ui.validation_message.hidden = !validationError;
     ui.validation_message.textContent = validationError ?? "";
-    ui.candidate_total.innerHTML = "";
-    const number = document.createTextNode(config ? `${fmt(config.total)} ` : "— ");
+    ui.candidate_total.replaceChildren(document.createTextNode(config ? `${fmt(config.total)} ` : "— "));
     const small = document.createElement("small");
     small.textContent = "candidates";
-    ui.candidate_total.append(number, small);
+    ui.candidate_total.append(small);
     if (!isBusy()) {
       ui.total_label.textContent = `/ ${config ? fmt(config.total) : "—"} attempts`;
       ui.start_btn.disabled = !selectedFile || !!validationError;
     }
     return config;
   }
-  function candidateFromPattern(pattern, idx) {
+  function candidateFromPattern(pattern, idx, chars) {
     if (pattern.unknown === 0) return pattern.mask;
-    const digits = idx.toString(10).padStart(pattern.unknown, "0");
+    // Base-N encoding: selected alphabet controls each unknown slot.
+    const base = chars.length;
+    const slots = Array(pattern.unknown);
+    for (let i = slots.length - 1; i >= 0; i--) {
+      slots[i] = chars[idx % base];
+      idx = Math.floor(idx / base);
+    }
     let pos = 0;
-    return pattern.mask.replace(/\?/g, () => digits[pos++]);
+    return pattern.mask.replace(/\?/g, () => slots[pos++]);
   }
   function nextCandidate(run) {
     while (run.patternIndex < run.patterns.length) {
       const p = run.patterns[run.patternIndex];
       if (p.next < p.count) {
-        const password = candidateFromPattern(p, p.next);
-        p.next += 1n;
-        return { password, length: p.length };
+        const password = candidateFromPattern(p, p.next, run.chars);
+        p.next++;
+        return {password, length: p.length};
       }
-      run.patternIndex += 1;
+      run.patternIndex++;
     }
     return null;
   }
@@ -171,22 +210,28 @@
     ui.stop_btn.disabled = !["loading", "running", "paused"].includes(state);
     ui.start_btn.disabled = isBusy() || !selectedFile || !validateConfigOnly();
     const locked = isBusy();
-    for (const input of [ui.file_input, ui.min_length, ui.max_length, ui.prefix, ui.suffix, ...ui.mask_list.querySelectorAll("input")]) input.disabled = locked;
+    for (const input of [ui.file_input, ui.min_length, ui.max_length, ui.prefix, ui.suffix, ui.middle_value, ui.middle_position, ui.set_digits, ui.set_lower, ui.set_upper, ui.log_mode, ...ui.mask_list.querySelectorAll("input")]) input.disabled = locked;
     ui.dropzone.style.pointerEvents = locked ? "none" : "";
     ui.download_log.disabled = !(run?.logs.length);
   }
   function validateConfigOnly() { try { compile(); return true; } catch { return false; } }
   function appendLog(run, password, outcome) {
+    // All candidates reach PDF.js. Fast mode avoids costly per-attempt log strings and DOM updates.
+    const shouldLog = run.logMode === "detailed" || run.tested <= 3 || run.tested % FAST_SAMPLE_INTERVAL === 0 || outcome === "FOUND";
+    run.lastPassword = password;
+    run.lastOutcome = outcome;
+    if (outcome === "FOUND") run.foundPassword = password;
+    if (!shouldLog) return;
     const line = `Checked ${fmt(run.tested)}/${fmt(run.total)} | Password: ${password} | ${outcome}`;
     run.recent.push({password, outcome, count: fmt(run.tested)});
     if (run.recent.length > MAX_VISIBLE_LOGS) run.recent.shift();
     if (run.logs.length < MAX_SAVED_LOGS) run.logs.push(line);
     else run.logsTruncated = true;
-    run.lastPassword = password;
-    run.lastOutcome = outcome;
-    if (outcome === "FOUND") run.foundPassword = password;
+    run.logRevision++;
   }
   function drawRecent(run) {
+    if (run.logRevision === run.paintLogRevision) return;
+    run.paintLogRevision = run.logRevision;
     const fragment = document.createDocumentFragment();
     for (const entry of run.recent) {
       const line = document.createElement("div");
@@ -205,27 +250,29 @@
     }
     ui.terminal.replaceChildren(fragment);
     ui.terminal.scrollTop = ui.terminal.scrollHeight;
-    ui.log_caption.textContent = run.logsTruncated
-      ? `Showing last ${MAX_VISIBLE_LOGS} attempts. Export limited to first ${fmt(MAX_SAVED_LOGS)} results to protect browser memory.`
-      : `Showing last ${MAX_VISIBLE_LOGS} attempts. Export includes each recorded result (${fmt(run.logs.length)}).`;
+    const sampling = run.logMode === "fast" ? `Fast mode: first 3, every ${FAST_SAMPLE_INTERVAL}th attempt, and matches only. ` : "Detailed mode: each completed attempt. ";
+    ui.log_caption.textContent = sampling + (run.logsTruncated
+      ? `Export limited to first ${fmt(MAX_SAVED_LOGS)} recorded entries.`
+      : `${fmt(run.logs.length)} entries recorded for export.`);
     ui.download_log.disabled = !run.logs.length;
   }
   function draw(run, force = false) {
     if (run !== currentRun) return;
     const t = now();
-    if (!force && t - run.lastPaint < 80) return;
+    const paintInterval = run.logMode === "fast" ? 300 : 150;
+    if (!force && t - run.lastPaint < paintInterval) return;
     run.lastPaint = t;
     const elapsed = Math.max(1, (run.finishTime ?? t) - run.started);
-    const percentage = run.total > 0n ? Number(run.tested * 10000n / run.total) / 100 : 0;
+    const percentage = run.total > 0 ? run.tested / run.total * 100 : 0;
     ui.checked_label.textContent = fmt(run.tested);
     ui.total_label.textContent = `/ ${fmt(run.total)} attempts`;
     ui.percent_label.textContent = `${percentage.toFixed(2)}%`;
     ui.progress_fill.style.width = `${percentage}%`;
     ui.elapsed_label.textContent = mmss(elapsed);
-    ui.rate_label.textContent = run.tested ? `${Math.round(Number(run.tested) / (elapsed / 1000)).toLocaleString("en-US")}/s` : "—";
+    ui.rate_label.textContent = run.tested ? `${Math.round(run.tested / (elapsed / 1000)).toLocaleString("en-US")}/s` : "—";
     ui.length_label.textContent = run.lastPassword ? String(run.lastPassword.length) : "—";
-    ui.current_password.textContent = run.lastPassword ?? "— — — — — —";
-    ui.attempt_result.textContent = run.lastOutcome ?? "—";
+    ui.current_password.textContent = run.lastPassword || "— — — — — —";
+    ui.attempt_result.textContent = run.lastOutcome || "—";
     ui.attempt_result.className = `attempt-status ${run.lastOutcome === "FOUND" ? "success" : ""}`;
     ui.active_hint.textContent = run.message;
     drawRecent(run);
@@ -233,7 +280,7 @@
   function markAttemptRejected(run) {
     // PDF.js calls onPassword again AFTER it rejects the preceding candidate.
     if (run.inFlight !== null) {
-      run.tested += 1n;
+      run.tested++;
       appendLog(run, run.inFlight.password, "WRONG");
       run.inFlight = null;
       run.message = "Password was rejected by the PDF authentication engine.";
@@ -287,8 +334,9 @@
     const config = validate();
     if (!selectedFile || !config) { showToast("Choose a PDF and valid patterns first."); return; }
     const run = {
-      id: ++sequenceNumber, file: selectedFile, patterns: config.compiled,
-      total: config.total, patternIndex: 0, tested: 0n,
+      id: ++sequenceNumber, file: selectedFile, patterns: config.compiled, chars: config.chars,
+      total: config.total, patternIndex: 0, tested: 0, logMode: ui.log_mode.value,
+      logRevision: 0, paintLogRevision: -1,
       inFlight: null, pendingUpdatePassword: null, state: "loading", terminal: false,
       logs: [], recent: [], logsTruncated: false, lastPassword: "", lastOutcome: "",
       message: "Loading PDF verification engine…", started: now(), lastPaint: 0,
@@ -313,7 +361,7 @@
       if (run !== currentRun || run.terminal) { await pdf.destroy(); return; }
       if (run.inFlight !== null) {
         // The document resolved; therefore the last candidate was accepted.
-        run.tested += 1n;
+        run.tested++;
         appendLog(run, run.inFlight.password, "FOUND");
         run.inFlight = null;
         ui.found_password.textContent = run.foundPassword;
@@ -379,7 +427,7 @@
   function exportLog() {
     const run = currentRun;
     if (!run?.logs.length) return;
-    const header = [`PatternLab recovery log`, `File: ${run.file.name}`, `Tested: ${fmt(run.tested)}/${fmt(run.total)}`, `Status: ${run.state}`, `Log limit: ${MAX_SAVED_LOGS} entries`, ...(run.logsTruncated ? ["WARNING: Additional attempts were not saved in this log."] : []), "", ""];
+    const header = [`PatternLab recovery log`, `File: ${run.file.name}`, `Tested: ${fmt(run.tested)}/${fmt(run.total)}`, `Status: ${run.state}`, `Log mode: ${run.logMode} (fast mode is sampled)`, `Log limit: ${MAX_SAVED_LOGS} entries`, ...(run.logsTruncated ? ["WARNING: Additional attempts were not saved in this log."] : []), "", ""];
     const blob = new Blob([header.join("\n"), run.logs.join("\n"), "\n"], {type: "text/plain;charset=utf-8"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -394,11 +442,14 @@
   for (const event of ["dragenter", "dragover"]) ui.dropzone.addEventListener(event, (e) => {e.preventDefault();if(!isBusy()) ui.dropzone.classList.add("dragover");});
   for (const event of ["dragleave", "drop"]) ui.dropzone.addEventListener(event, (e) => {e.preventDefault();ui.dropzone.classList.remove("dragover");});
   ui.dropzone.addEventListener("drop", (e) => {if(!isBusy()) setFile(e.dataTransfer?.files?.[0]);});
-  for (const input of [ui.min_length, ui.max_length, ui.prefix, ui.suffix]) {
+  for (const input of [ui.min_length, ui.max_length, ui.prefix, ui.suffix, ui.middle_value, ui.middle_position]) {
     input.addEventListener("input", () => {
-      if (input === ui.prefix || input === ui.suffix) input.value = cleanDigits(input.value);
+      if ([ui.prefix, ui.suffix, ui.middle_value].includes(input)) input.value = cleanKnown(input.value);
       buildMasks();
     });
+  }
+  for (const input of [ui.set_digits, ui.set_lower, ui.set_upper]) {
+    input.addEventListener("change", validate); // Preserve manually edited masks.
   }
   ui.start_btn.addEventListener("click", startSearch);
   ui.pause_btn.addEventListener("click", pauseSearch);

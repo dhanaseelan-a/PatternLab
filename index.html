@@ -24,7 +24,7 @@
         <div class="hero-copy">
           <p class="eyebrow"><span class="eyebrow-line"></span> PDF RECOVERY WORKSPACE</p>
           <h1 id="main-title">Remember the <em>pattern.</em><br>Recover the password.</h1>
-          <p class="hero-description">Build a precise numeric password search using lengths, fixed digits, and unknown positions. Every candidate is checked against your PDF locally in the browser.</p>
+          <p class="hero-description">Build a precise password search using lengths, known characters, and configurable unknown positions. Every candidate is checked against your PDF locally in the browser.</p>
         </div>
         <div class="hero-graphic" aria-hidden="true">
           <div class="graphic-top"><span>SEARCH PATTERN</span><span>10 DIGITS</span></div>
@@ -51,26 +51,56 @@
           <section class="setting-block" aria-labelledby="length-title">
             <div class="section-heading"><span class="section-number">B</span><h3 id="length-title">Password length</h3></div>
             <div class="two-inputs">
-              <label class="field">Minimum digits <input id="min-length" type="number" min="1" max="20" step="1" value="8"></label>
-              <label class="field">Maximum digits <input id="max-length" type="number" min="1" max="20" step="1" value="10"></label>
+              <label class="field">Minimum length <input id="min-length" type="number" min="1" max="20" step="1" value="8"></label>
+              <label class="field">Maximum length <input id="max-length" type="number" min="1" max="20" step="1" value="10"></label>
             </div>
             <p class="field-hint">Every length in this range gets its own editable pattern.</p>
           </section>
 
           <section class="setting-block" aria-labelledby="fixed-title">
-            <div class="section-heading"><span class="section-number">C</span><h3 id="fixed-title">Known digits</h3></div>
+            <div class="section-heading"><span class="section-number">C</span><h3 id="fixed-title">Known characters</h3></div>
             <div class="two-inputs">
-              <label class="field">Starts with <input id="prefix" type="text" inputmode="numeric" autocomplete="off" value="3" placeholder="Optional"></label>
-              <label class="field">Ends with <input id="suffix" type="text" inputmode="numeric" autocomplete="off" value="2766" placeholder="Optional"></label>
+              <label class="field">Starts with <input id="prefix" type="text" autocomplete="off" value="3" placeholder="Optional"></label>
+              <label class="field">Ends with <input id="suffix" type="text" autocomplete="off" value="2766" placeholder="Optional"></label>
             </div>
-            <p class="field-hint">Optional shortcuts. For fixed digits in the middle, edit an individual pattern below.</p>
+            <p class="field-hint">Fixed prefix and suffix; numbers and letters allowed.</p>
+          </section>
+
+          <section class="setting-block" aria-labelledby="middle-title">
+            <div class="section-heading"><span class="section-number">D</span><h3 id="middle-title">Known middle characters</h3><span class="section-hint">OPTIONAL</span></div>
+            <div class="two-inputs">
+              <label class="field">Known sequence <input id="middle-value" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. 22 or ab"></label>
+              <label class="field">Starts at position (1-based) <input id="middle-position" type="number" min="1" max="20" step="1" value="4"></label>
+            </div>
+            <p class="field-hint">Example: <code>3??222766</code> is 9 characters, with middle <code>22</code> at positions 4–5. If your known text overlaps the prefix or suffix at a length, adjust the position or length range.</p>
+          </section>
+
+          <section class="setting-block" aria-labelledby="charset-title">
+            <div class="section-heading"><span class="section-number">E</span><h3 id="charset-title">Unknown character types</h3></div>
+            <div class="toggle-grid" role="group" aria-label="Characters to try for unknown positions">
+              <label class="toggle-option"><input id="set-digits" type="checkbox" checked><span>0–9</span><small>Digits</small></label>
+              <label class="toggle-option"><input id="set-lower" type="checkbox"><span>a–z</span><small>Lowercase</small></label>
+              <label class="toggle-option"><input id="set-upper" type="checkbox"><span>A–Z</span><small>Uppercase</small></label>
+            </div>
+            <p class="field-hint">Selected character groups apply to every <code>?</code>. Known letters in fixed positions are always allowed.</p>
           </section>
 
           <section class="setting-block patterns-block" aria-labelledby="patterns-title">
-            <div class="section-heading"><span class="section-number">D</span><h3 id="patterns-title">Search patterns</h3><span class="section-hint">? = any digit</span></div>
+            <div class="section-heading"><span class="section-number">F</span><h3 id="patterns-title">Search patterns</h3><span class="section-hint">? = unknown</span></div>
             <div id="mask-list" class="mask-list" aria-live="polite"></div>
-            <p class="field-hint">Examples: <code>3???2766</code> or <code>3?5?2766</code>. Fixed positions can vary per length.</p>
+            <p class="field-hint">Examples: <code>3???2766</code>, <code>3?ab?2766</code>. Edit any pattern to fix additional positions; configuration changes regenerate patterns.</p>
             <div id="validation-message" class="validation" role="alert" hidden></div>
+          </section>
+
+          <section class="setting-block performance-block" aria-labelledby="performance-title">
+            <div class="section-heading"><span class="section-number">G</span><h3 id="performance-title">Performance</h3></div>
+            <label class="field" for="log-mode">Monitoring mode
+              <select id="log-mode" class="mode-select">
+                <option value="fast" selected>Fast · fewer UI updates, sampled logs</option>
+                <option value="detailed">Detailed · record each attempted password</option>
+              </select>
+            </label>
+            <p class="field-hint">Fast mode reduces browser display/logging overhead; PDF authentication still runs for <strong>every</strong> candidate. Actual speed depends on PDF encryption and device hardware.</p>
           </section>
 
           <div class="setup-footer">
@@ -87,9 +117,9 @@
           <div class="active-password"><div class="active-title"><span>LATEST VERIFIED ATTEMPT</span><span id="attempt-result" class="attempt-status">—</span></div><div class="password-display" id="current-password">— — — — — —</div><div class="active-hint" id="active-hint">Waiting for a PDF and a search pattern.</div></div>
           <div id="success-panel" class="success-panel" hidden><div class="success-mark">✓</div><div class="success-copy"><h3>Password recovered</h3><p id="found-password">—</p></div><button id="copy-password" type="button" class="copy-button">Copy password</button></div>
           <div class="control-row"><button id="pause-btn" type="button" class="button button-secondary" disabled>Pause</button><button id="resume-btn" type="button" class="button button-secondary" disabled>Resume</button><button id="stop-btn" type="button" class="button button-danger" disabled>Stop</button></div>
-          <div class="activity-head"><div><h3>Attempt log</h3><p>Each result appears after PDF authentication.</p></div><button id="download-log" class="text-button" type="button" disabled>Export .txt ↗</button></div>
+          <div class="activity-head"><div><h3>Attempt log</h3><p>Logged results appear only after PDF authentication. Fast mode samples attempts.</p></div><button id="download-log" class="text-button" type="button" disabled>Export .txt ↗</button></div>
           <div class="terminal" id="terminal" role="log" aria-live="off" aria-label="Password attempt log"><div class="terminal-empty">&gt; Waiting for recovery to start<span class="cursor">_</span></div></div>
-          <p class="terminal-caption" id="log-caption">Showing most recent attempts. The export contains recorded results.</p>
+          <p class="terminal-caption" id="log-caption">Showing most recent attempts. The export contains recorded results (sampled in Fast mode).</p>
         </section>
       </div>
 
