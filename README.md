@@ -2,22 +2,6 @@
 
 A small, responsive website built with **Vanilla JavaScript, HTML and CSS**. It checks numeric password candidates against a **PDF selected from your own device**. No remote backend, accounts, or uploads.
 
-## Getting started (Windows)
-
-1. Extract the ZIP file.
-2. In the extracted folder, open PowerShell.
-3. Run:
-
-   ```powershell
-   py -m http.server 8080
-   ```
-4. Open **http://localhost:8080** in Chrome or Edge.
-5. Select your own password-protected PDF, enter a minimum and maximum password length, specify known digits, then press **Start recovery**.
-
-For a quick demo, select the bundled `demo-locked.pdf`, set both min/max length to `10`, starting digits to `3`, ending digits to `2766`. The demo password is `3000072766` and should be found on the eighth candidate.
-
-The site fetches **Mozilla PDF.js 6.4.299** from jsDelivr when you click Start. An internet connection is needed to load that library. **The PDF file itself is not uploaded** by this application. To make the website fully offline, download the matching `pdf.min.mjs` and `pdf.worker.min.mjs` from [pdfjs-dist 6.4.299](https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/) and update `PDF_JS_URL` and `PDF_WORKER_URL` at the top of `app.js` to local URLs. Always use files from the same library version.
-
 ## Pattern rules
 
 - `?` means **any single digit 0–9**.
