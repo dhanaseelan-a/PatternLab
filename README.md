@@ -30,6 +30,4 @@ A small, responsive website built with **Vanilla JavaScript, HTML and CSS**. It 
 
 No analytics or server upload code. The browser makes a request for PDF.js JavaScript files from jsDelivr only when the recovery starts. The selected PDF data remains inside the browser. The recovered password stays inside the tab; copying it places it on your system clipboard. Exported logs contain attempted passwords and should be handled as sensitive.
 
-## Production branding
 
-Header: “Private by design” and “ON-DEVICE · NO UPLOADS”. Footer: “Created by Dhanaseelan”. These labels describe browser-local processing; they do not imply a security audit.
