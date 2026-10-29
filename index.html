@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Private, browser-based PDF password pattern recovery. No PDF uploads.">
+  <title>PatternLab — Private PDF password recovery</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="PatternLab home">
+        <span class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <span>pattern<span class="brand-light">lab</span><span class="brand-period">.</span></span>
+      </a>
+      <div class="top-right"><span class="privacy"><span class="dot"></span> Private by design</span><span class="version">ON-DEVICE <strong>· NO UPLOADS</strong></span></div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="main-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> PDF RECOVERY WORKSPACE</p>
+          <h1 id="main-title">Remember the <em>pattern.</em><br>Recover the password.</h1>
+          <p class="hero-description">Build a precise numeric password search using lengths, fixed digits, and unknown positions. Every candidate is checked against your PDF locally in the browser.</p>
+        </div>
+        <div class="hero-graphic" aria-hidden="true">
+          <div class="graphic-top"><span>SEARCH PATTERN</span><span>10 DIGITS</span></div>
+          <div class="code-row"><span class="known">3</span><span>?</span><span>?</span><span>?</span><span>?</span><span>?</span><span class="known">2</span><span class="known">7</span><span class="known">6</span><span class="known">6</span></div>
+          <div class="graphic-bottom"><span>FIXED</span><div class="rule"></div><span>UNKNOWN</span><div class="rule"></div><span>FIXED</span></div>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <section class="settings panel" aria-labelledby="setup-title">
+          <div class="panel-heading"><span class="number">01 /</span><div><h2 id="setup-title">Configure your search</h2><p>Use a PDF you own or are authorized to recover.</p></div></div>
+
+          <section class="setting-block" aria-labelledby="file-title">
+            <div class="section-heading"><span class="section-number">A</span><h3 id="file-title">Select your PDF</h3></div>
+            <input id="file-input" class="visually-hidden" type="file" accept="application/pdf,.pdf">
+            <label for="file-input" class="dropzone" id="dropzone" tabindex="0">
+              <span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m0 0L7 8m5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span>
+              <strong id="file-name">Choose or drop a PDF</strong>
+              <span id="file-meta">Only your browser reads the file</span>
+              <span class="choose-file">Browse files <span aria-hidden="true">↗</span></span>
+            </label>
+          </section>
+
+          <section class="setting-block" aria-labelledby="length-title">
+            <div class="section-heading"><span class="section-number">B</span><h3 id="length-title">Password length</h3></div>
+            <div class="two-inputs">
+              <label class="field">Minimum digits <input id="min-length" type="number" min="1" max="20" step="1" value="8"></label>
+              <label class="field">Maximum digits <input id="max-length" type="number" min="1" max="20" step="1" value="10"></label>
+            </div>
+            <p class="field-hint">Every length in this range gets its own editable pattern.</p>
+          </section>
+
+          <section class="setting-block" aria-labelledby="fixed-title">
+            <div class="section-heading"><span class="section-number">C</span><h3 id="fixed-title">Known digits</h3></div>
+            <div class="two-inputs">
+              <label class="field">Starts with <input id="prefix" type="text" inputmode="numeric" autocomplete="off" value="3" placeholder="Optional"></label>
+              <label class="field">Ends with <input id="suffix" type="text" inputmode="numeric" autocomplete="off" value="2766" placeholder="Optional"></label>
+            </div>
+            <p class="field-hint">Optional shortcuts. For fixed digits in the middle, edit an individual pattern below.</p>
+          </section>
+
+          <section class="setting-block patterns-block" aria-labelledby="patterns-title">
+            <div class="section-heading"><span class="section-number">D</span><h3 id="patterns-title">Search patterns</h3><span class="section-hint">? = any digit</span></div>
+            <div id="mask-list" class="mask-list" aria-live="polite"></div>
+            <p class="field-hint">Examples: <code>3???2766</code> or <code>3?5?2766</code>. Fixed positions can vary per length.</p>
+            <div id="validation-message" class="validation" role="alert" hidden></div>
+          </section>
+
+          <div class="setup-footer">
+            <div><span class="overline">SEARCH SPACE</span><div class="candidate-total" id="candidate-total">111,000 <small>candidates</small></div></div>
+            <button id="start-btn" class="button button-primary" type="button">Start recovery <span aria-hidden="true">↗</span></button>
+          </div>
+        </section>
+
+        <section class="results panel" aria-labelledby="results-title">
+          <div class="panel-heading"><span class="number">02 /</span><div><h2 id="results-title">Recovery monitor</h2><p>See what is being tested, as it happens.</p></div></div>
+          <div class="status-row"><span id="state-pill" class="state-pill idle"><span class="state-dot"></span><span id="state-label">READY</span></span><span class="engine-label">ENGINE <b>PDF.JS</b></span></div>
+          <div class="progress-block"><div class="progress-heading"><span>COMPLETED</span><strong id="percent-label">0%</strong></div><div class="progress-track"><div id="progress-fill" class="progress-fill" style="width:0%"></div></div><div class="progress-numbers"><strong id="checked-label">0</strong><span id="total-label">/ 111,000 attempts</span></div></div>
+          <div class="telemetry"><div class="telemetry-cell"><span>ELAPSED</span><strong id="elapsed-label">00:00</strong></div><div class="telemetry-cell"><span>RATE</span><strong id="rate-label">—</strong></div><div class="telemetry-cell"><span>LENGTH</span><strong id="length-label">—</strong></div></div>
+          <div class="active-password"><div class="active-title"><span>LATEST VERIFIED ATTEMPT</span><span id="attempt-result" class="attempt-status">—</span></div><div class="password-display" id="current-password">— — — — — —</div><div class="active-hint" id="active-hint">Waiting for a PDF and a search pattern.</div></div>
+          <div id="success-panel" class="success-panel" hidden><div class="success-mark">✓</div><div class="success-copy"><h3>Password recovered</h3><p id="found-password">—</p></div><button id="copy-password" type="button" class="copy-button">Copy password</button></div>
+          <div class="control-row"><button id="pause-btn" type="button" class="button button-secondary" disabled>Pause</button><button id="resume-btn" type="button" class="button button-secondary" disabled>Resume</button><button id="stop-btn" type="button" class="button button-danger" disabled>Stop</button></div>
+          <div class="activity-head"><div><h3>Attempt log</h3><p>Each result appears after PDF authentication.</p></div><button id="download-log" class="text-button" type="button" disabled>Export .txt ↗</button></div>
+          <div class="terminal" id="terminal" role="log" aria-live="off" aria-label="Password attempt log"><div class="terminal-empty">&gt; Waiting for recovery to start<span class="cursor">_</span></div></div>
+          <p class="terminal-caption" id="log-caption">Showing most recent attempts. The export contains recorded results.</p>
+        </section>
+      </div>
+
+      <section class="how-it-works" aria-label="Privacy and limitations"><div><span class="feature-number">01</span><h3>Your file stays here</h3><p>PDF bytes are read in your browser. The website does not upload the file to a server.</p></div><div><span class="feature-number">02</span><h3>Actual password checks</h3><p>Mozilla PDF.js validates each candidate against the encrypted PDF, rather than only generating numbers.</p></div><div><span class="feature-number">03</span><h3>Pattern-based, not magic</h3><p>The speed depends on the PDF encryption and your device. Large search spaces may be very slow.</p></div></section>
+    </main>
+    <footer class="site-footer"><span>Created by Dhanaseelan</span><span>VANILLA JAVASCRIPT · NO FRAMEWORK</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
