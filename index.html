@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Private, browser-based PDF password pattern recovery. No PDF uploads.">
-  <title>PatternLab — Private PDF password recovery</title>
+  <title>PatternLab V4 — Private PDF password recovery</title>
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
 </head>
@@ -51,8 +51,8 @@
           <section class="setting-block" aria-labelledby="length-title">
             <div class="section-heading"><span class="section-number">B</span><h3 id="length-title">Password length</h3></div>
             <div class="two-inputs">
-              <label class="field">Minimum length <input id="min-length" type="number" min="1" max="20" step="1" value="8"></label>
-              <label class="field">Maximum length <input id="max-length" type="number" min="1" max="20" step="1" value="10"></label>
+              <label class="field">Minimum length <input id="min-length" type="number" min="1" max="128" step="1" value="8"></label>
+              <label class="field">Maximum length <input id="max-length" type="number" min="1" max="128" step="1" value="10"></label>
             </div>
             <p class="field-hint">Every length in this range gets its own editable pattern.</p>
           </section>
@@ -70,7 +70,7 @@
             <div class="section-heading"><span class="section-number">D</span><h3 id="middle-title">Known middle characters</h3><span class="section-hint">OPTIONAL</span></div>
             <div class="two-inputs">
               <label class="field">Known sequence <input id="middle-value" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. 22 or ab"></label>
-              <label class="field">Starts at position (1-based) <input id="middle-position" type="number" min="1" max="20" step="1" value="4"></label>
+              <label class="field">Starts at position (1-based) <input id="middle-position" type="number" min="1" max="128" step="1" value="4"></label>
             </div>
             <p class="field-hint">Example: <code>3??222766</code> is 9 characters, with middle <code>22</code> at positions 4–5. If your known text overlaps the prefix or suffix at a length, adjust the position or length range.</p>
           </section>
@@ -97,16 +97,40 @@
             <label class="field" for="log-mode">Monitoring mode
               <select id="log-mode" class="mode-select">
                 <option value="fast" selected>Fast · fewer UI updates, sampled logs</option>
-                <option value="detailed">Detailed · record each attempted password</option>
+                <option value="detailed">Detailed · recent attempts only (memory-safe)</option>
               </select>
             </label>
-            <p class="field-hint">Fast mode reduces browser display/logging overhead; PDF authentication still runs for <strong>every</strong> candidate. Actual speed depends on PDF encryption and device hardware.</p>
+            <div class="two-inputs v3-perf-grid">
+              <label class="field" for="warning-threshold">Warn when search exceeds
+                <select id="warning-threshold" class="mode-select">
+                  <option value="1000000">1 million</option>
+                  <option value="5000000" selected>5 million</option>
+                  <option value="100000000">100 million</option>
+                  <option value="1000000000">1 billion</option>
+                  <option value="off">Never (not recommended)</option>
+                </select>
+              </label>
+              <label class="save-option"><input id="save-progress" type="checkbox" checked> <span><strong>Save recovery checkpoint</strong><small>Only file/pattern fingerprints and confirmed attempt count are saved in this browser. Never your PDF or passwords.</small></span></label>
+            </div>
+            <p class="field-hint">No hard candidate limit. Fast mode minimizes display overhead; <strong>every</strong> candidate still goes through PDF authentication. Huge searches may run for days or longer.</p>
+            <p class="large-warning" id="large-warning" role="status" hidden></p>
+          </section>
+
+          <section class="setting-block storage-block" aria-labelledby="storage-title">
+            <div class="section-heading"><span class="section-number">H</span><h3 id="storage-title">Browser storage &amp; privacy</h3><span class="section-hint">OPTIONAL</span></div>
+            <label class="save-option remember-option"><input id="remember-pdf" type="checkbox"><span><strong>Remember this PDF on this device</strong><small>OFF by default. When enabled, saves one PDF and its search pattern settings in this browser's IndexedDB for one-click resume after a refresh or crash. They are never uploaded to Vercel. Do not enable on a shared computer.</small></span></label>
+            <p id="remember-hint" class="remember-hint" role="status">No PDF is stored in the browser.</p>
+            <div class="storage-actions">
+              <button id="forget-pdf" class="button button-secondary" type="button" disabled>Forget stored PDF</button>
+              <button id="clear-all" class="button button-danger" type="button">Clear all recovery data</button>
+            </div>
+            <p class="field-hint">Saved PDFs are removed after password recovery succeeds or the search is exhausted. Stopping early keeps an opted-in PDF and checkpoint for later. Clearing browser site data can remove them at any time.</p>
           </section>
 
           <div class="setup-footer">
             <div><span class="overline">SEARCH SPACE</span><div class="candidate-total" id="candidate-total">111,000 <small>candidates</small></div></div>
-            <button id="start-btn" class="button button-primary" type="button">Start recovery <span aria-hidden="true">↗</span></button>
-          </div>
+            <button id="start-btn" class="button button-primary" type="button">Start / resume recovery <span aria-hidden="true">↗</span></button>
+          <p id="checkpoint-hint" class="checkpoint-hint" role="status">No saved recovery checkpoint.</p>
         </section>
 
         <section class="results panel" aria-labelledby="results-title">
@@ -117,9 +141,10 @@
           <div class="active-password"><div class="active-title"><span>LATEST VERIFIED ATTEMPT</span><span id="attempt-result" class="attempt-status">—</span></div><div class="password-display" id="current-password">— — — — — —</div><div class="active-hint" id="active-hint">Waiting for a PDF and a search pattern.</div></div>
           <div id="success-panel" class="success-panel" hidden><div class="success-mark">✓</div><div class="success-copy"><h3>Password recovered</h3><p id="found-password">—</p></div><button id="copy-password" type="button" class="copy-button">Copy password</button></div>
           <div class="control-row"><button id="pause-btn" type="button" class="button button-secondary" disabled>Pause</button><button id="resume-btn" type="button" class="button button-secondary" disabled>Resume</button><button id="stop-btn" type="button" class="button button-danger" disabled>Stop</button></div>
+          <div class="checkpoint-actions"><span>Same-tab pause/resume works without saving. If Remember PDF is on, the PDF and settings restore locally; otherwise reselect the PDF and re-enter your pattern to resume.</span><button id="clear-checkpoint" type="button" class="text-button">Clear saved progress</button></div>
           <div class="activity-head"><div><h3>Attempt log</h3><p>Logged results appear only after PDF authentication. Fast mode samples attempts.</p></div><button id="download-log" class="text-button" type="button" disabled>Export .txt ↗</button></div>
           <div class="terminal" id="terminal" role="log" aria-live="off" aria-label="Password attempt log"><div class="terminal-empty">&gt; Waiting for recovery to start<span class="cursor">_</span></div></div>
-          <p class="terminal-caption" id="log-caption">Showing most recent attempts. The export contains recorded results (sampled in Fast mode).</p>
+          <p class="terminal-caption" id="log-caption">Showing most recent attempts. The export contains recent recorded results only (sampled in Fast mode).</p>
         </section>
       </div>
 
