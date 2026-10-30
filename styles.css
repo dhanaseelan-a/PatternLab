@@ -22,3 +22,71 @@
 
 /* V4: local, opt-in PDF persistence controls */
 .remember-option{margin:0}.remember-hint{font-size:11.5px;color:var(--muted);margin:13px 0 0;line-height:1.6;overflow-wrap:anywhere}.storage-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:17px}.storage-actions .button{flex:1;min-width:170px;text-align:center}.storage-block .button-danger{color:#ffb5b0}.storage-actions .button-secondary{color:#e3eadf}.storage-block .save-option:focus-within{outline:2px solid var(--green);outline-offset:2px}@media(max-width:760px){.storage-actions{flex-direction:column}.storage-actions .button{min-width:0}}
+
+
+/* V4.1 mobile layout: make the recovery action area a vertical stack.
+   Keep checkpoint outside .setup-footer in the HTML so it cannot
+   squeeze the count or action button into tiny columns. */
+.setup-footer > div:first-child { min-width: 0; }
+.setup-footer .candidate-total { line-height: 1.25; }
+.setup-footer .button-primary { flex-shrink: 0; }
+
+@media (max-width: 760px) {
+  .setup-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    align-items: stretch;
+    padding: 25px 22px 18px;
+  }
+  .setup-footer .overline {
+    display: block;
+    margin-bottom: 8px;
+  }
+  .setup-footer .candidate-total {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: clamp(27px, 7.8vw, 35px);
+    letter-spacing: -0.045em;
+    overflow-wrap: anywhere;
+  }
+  .setup-footer .candidate-total small {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .setup-footer .button-primary {
+    width: 100%;
+    min-width: 0;
+    min-height: 54px;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 15px 18px;
+    font-size: 14px;
+    text-align: left;
+    line-height: 1.35;
+  }
+  .setup-footer .button-primary span {
+    flex: 0 0 auto;
+    font-size: 18px;
+  }
+  .checkpoint-hint {
+    margin: 0 22px 26px;
+    padding: 12px 14px;
+    overflow-wrap: anywhere;
+    width: auto;
+  }
+}
+
+@media (max-width: 390px) {
+  .setup-footer { padding: 23px 17px 16px; }
+  .checkpoint-hint { margin: 0 17px 24px; }
+}
+
+
+/* Prevent tablet-width two-column workspace from squeezing form content. */
+@media (max-width: 980px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+}
+.panel-heading .number { white-space: nowrap; flex-shrink: 0; }
